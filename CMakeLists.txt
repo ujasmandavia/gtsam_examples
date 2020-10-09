@@ -1,4 +1,4 @@
-cmake_minimum_requires(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.10)
 project(gtsam_examples)
 
 # if you see a segfault: https://groups.google.com/forum/#!topic/gtsam-users/sDNbMiCtRYI

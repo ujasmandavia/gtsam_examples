@@ -47,7 +47,7 @@ struct IMUHelper{
              0.998315, 0.037670, 0.044147);
 
     //body to IMU translation
-    Point3 ItB(0.03,-0.025,-0.06);
+    Point3 iTb(0.03,-0.025,-0.06);
 
     //body in this example is left camera
     p->body_P_sensor = Pose3(iRb,iTb);
@@ -58,13 +58,13 @@ struct IMUHelper{
     Vector3 acc_bias(0.0,-0.0942015,0.0);  //in camera frame
     Vector3 gyro_bias(-0.00527483,-0.00757152,-0.00469968);
 
-    priotImuBias = imuBias::ConstantBias(acc_bias,gyro_bias);
+    priorImuBias = imuBias::ConstantBias(acc_bias,gyro_bias);
 
     prevState = NavState(prior_pose,Vector3(0,0,0));
     propState = prevState;
     prevBias = priorImuBias;
 
-    preintegrated = new PreIntegratedCombinedMeasurements(p,priorImuBias);
+    preintegrated = new PreintegratedCombinedMeasurements(p,priorImuBias);
   }
 
   imuBias::ConstantBias priorImuBias;  // assume zero initial bias
@@ -82,7 +82,7 @@ int main(int argc, char* argv[]){
     return 0;
   }
   
-  ifstream in(argv[1]);
+  ifstream in("data.txt");
 
   if(!in){
     std::cerr << "error opening: " << argv[1] << std::endl; 
@@ -95,11 +95,11 @@ int main(int argc, char* argv[]){
   double cy = 579.10;
   double baseline = 0.372; //meters
 
-  Cal2_S2Stereo::shared_ptr K(new Cal3_S2Stereo(fx,fy,0.0,cx,cy,baseline));
+  Cal3_S2Stereo::shared_ptr K(new Cal3_S2Stereo(fx,fy,0.0,cx,cy,baseline));
 
   ISAM2Params parameters;
   parameters.relinearizeThreshold = 0.1;
-  ISAM2 isam(parametres);
+  ISAM2 isam(parameters);
 
   //Create a factor graph
   std::map<size_t,SmartStereoProjectionPoseFactor::shared_ptr> smartFactors;
@@ -109,16 +109,20 @@ int main(int argc, char* argv[]){
 
   //Pose prior - at identity
   auto priorPoseNoise = noiseModel::Diagonal::Sigmas((Vector(6) << Vector3::Constant(0.1)).finished());
-  graph.addPrior(X(1),Pose3::Identity(),priorPoseNoise);
-  initialEstimate.insert(X(0),Pose3::Identity());
+  //graph.addPrior(X(1),Pose3::identity(),priorPoseNoise);
+  //graph.addPrior(X(1),Pose3::identity(),priorPoseNoise);
+  graph.push_back(PriorFactor<Pose3>(X(1),Pose3::identity(),priorPoseNoise));
+  initialEstimate.insert(X(0),Pose3::identity());
 
   //Bias prior
-  graph.addPrior(B(1),imu.PriorImuBias, imu.biasNoiseModel);
+  //graph.addPrior(B(1),imu.priorImuBias, imu.biasNoiseModel);
+  graph.push_back(PriorFactor<imuBias::ConstantBias>(B(1),imu.priorImuBias,imu.biasNoiseModel));
   initialEstimate.insert(B(0),imu.priorImuBias);
 
   //Velocity prior - assume stationary
-  graph.addPrior(V(1),imu.PriorImuVelocity, imu.velocityNoiseModel);
-  initialEstimate.insert(V(0),imu.priorImuVelocity);
+  //graph.addPrior(V(1),Vector3(0,0,0), imu.velocityNoiseModel);
+  graph.push_back(PriorFactor<Vector3>(V(1),Vector3(0,0,0),imu.velocityNoiseModel));
+  initialEstimate.insert(V(0),Vector3(0,0,0));
 
   int lastFrame = 1;
   int frame;
@@ -136,7 +140,7 @@ int main(int argc, char* argv[]){
     if(frame != lastFrame || in.eof()){
       std::cout << "Running iSAM for the frame: " << lastFrame << "\n";
 
-      initialEstimate.insert(X(lastFrame),Pose3::Identity());
+      initialEstimate.insert(X(lastFrame),Pose3::identity());
       initialEstimate.insert(V(lastFrame),Vector3(0,0,0));
       initialEstimate.insert(B(lastFrame),imu.prevBias);
 
@@ -164,7 +168,7 @@ int main(int argc, char* argv[]){
       }
     }
 
-    if(type == "i"){
+    if(type == 'i'){
       double ax,ay,az;
       double gx,gy,gz;
       double dt = 1/800.0;   //becuase IMU measurements are coming at 800Hz
@@ -180,7 +184,7 @@ int main(int argc, char* argv[]){
       Vector3 acc(ax,ay,az);
       Vector3 gyr(gx,gy,gz);
 
-      imu.preintegrated->integrateMeasuremente(acc,gyr,dt);
+      imu.preintegrated->integrateMeasurement(acc,gyr,dt);
     }else if(type == 's'){
       int landmark;
       double xl,xr,y;
