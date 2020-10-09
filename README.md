@@ -2,8 +2,11 @@
 GTSAM Tutorials
 
 References:
+
 https://github.com/borglab/gtsam
+
 https://github.com/mpkuse/gtsam_standalone
+
 https://github.com/dongjing3309/gtsam-examples
 
 GTSAM Materials:
